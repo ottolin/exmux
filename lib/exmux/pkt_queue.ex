@@ -1,7 +1,7 @@
 defmodule ExMux.Pkt do
   defstruct data: <<>>,
             size: 0,
-            t: 0 # send time
+            t: 0 # recv time
 end
 
 defmodule ExMux.PktQueue do
@@ -15,32 +15,29 @@ defmodule ExMux.PktQueue do
     GenServer.cast(__MODULE__, {:put, pkt})
   end
 
-  def pop_with_time(t) do
-    GenServer.call(__MODULE__, {:pop_with_time, t})
+  def consume do
+    GenServer.call(__MODULE__, {:consume})
+  end
+
+  def info do
+    GenServer.call(__MODULE__, :info)
   end
 
   def init(:ok) do
+    :erlang.process_flag(:priority, :max)
     {:ok, :queue.new}
+  end
+
+  def handle_call({:consume}, _from, state) do
+    {:reply, state, :queue.new}
+  end
+
+  def handle_call(:info, _from, state) do
+    {:reply, state, state}
   end
 
   def handle_cast({:put, pkt}, q) do
     {:noreply, :queue.in(pkt, q)}
   end
 
-  def handle_call({:pop_with_time, t}, _from, q) do
-    {pkts, q2} = get_pkt_with_time(t, q)
-    {:reply, pkts, q2}
-  end
-
-  defp get_pkt_with_time(t, q) do
-    get_pkt_with_time(t, q, [])
-  end
-
-  defp get_pkt_with_time(t, q, acc) do
-    case :queue.out(q) do
-      {{:value, %ExMux.Pkt{t: sendtime} = item}, q2} when sendtime <= t
-        -> get_pkt_with_time(t, q2, [item | acc])
-      _ -> { Enum.reverse(acc) , q}
-    end
-  end
 end
